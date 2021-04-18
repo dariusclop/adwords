@@ -4,13 +4,7 @@ import moment from 'moment';
 import { chain } from 'lodash';
 
 let inputLines = inputText.split(/\n/);
-const initialBudget = budgetInput[0]?.budgets[0]?.amount;
-const startDate = budgetInput[0]?.date;
-const clonedStartDate = startDate.clone();
-const endDate = clonedStartDate.add(3, 'months');
-let monthlyBudget = 0; 
 const costsGenerated = [];
-const dailyHistory = [];
 const budgetMultiplier = 2;
 const maxCostsGeneratedPerDay = 10;
 
@@ -51,16 +45,17 @@ const App = () => {
   }
 
   const getMonthlyMaxBudgets = monthlyBudgets => {
-    return monthlyBudgets.map((monthlyBudget, index) => {
+    return monthlyBudgets.map(monthlyBudget => {
       let monthlyMaxCost = 0;
       let dailyCost = 0;
       const monthlyBudgetDate = monthlyBudget.month.split('.');
-      const startDate = moment({ year: monthlyBudgetDate[1], month: monthlyBudgetDate[0], day: 1, hour: 0, minute: 0});
-      const endDate = startDate.clone().add(1, 'months');
-      while(compareDates(startDate, endDate)) {
+      const currentDate = moment({ year: parseInt(monthlyBudgetDate[1]), month: parseInt(monthlyBudgetDate[0]), day: 1, hour: 0, minute: 0});
+      const endDate = currentDate.clone().add(1, 'months');
+      while(compareDates(currentDate, endDate)) {
         let foundDate = false;
+
         for(let dailyBudget of monthlyBudget.items) {
-          if(equalDates(dailyBudget.date, startDate)) {
+          if(equalDates(dailyBudget.date, currentDate)) {
             monthlyMaxCost += dailyBudget.maximumBudget;
             dailyCost = dailyBudget.latestBudget;
             foundDate = true;
@@ -71,7 +66,7 @@ const App = () => {
             monthlyMaxCost += dailyCost;
           }
         }
-        startDate.add(1, 'days');
+        currentDate.add(1, 'days');
       }
       return {
         ...monthlyBudget,
@@ -79,22 +74,62 @@ const App = () => {
       }
     })
   }
+
+  const getAllBudgets = dailyBudgets => {
+    const budgets = [];
+    dailyBudgets.forEach(item => {
+      for(let budget of item.budgets) {
+        const budgetItem = {
+          ...budget,
+          maximumBudget: item.maximumBudget
+        }
+        budgets.push(budgetItem);
+      }
+    });
+    return budgets;
+  }
   
   const calculateBudget = () => {
     const dailyBudgets = getDailyMaximumBudgets();
     const monthlyBudgets = getBudgetsByMonth(dailyBudgets);
     const monthlyMaxBudgets = getMonthlyMaxBudgets(monthlyBudgets);
-    console.log(monthlyMaxBudgets);
-    dailyBudgets.forEach((budget, index) => {
-      let currentDate = budget.date.clone();
-      if(budgetInput[index + 1]) {
-        while(compareDates(currentDate, budgetInput[index + 1].date)) {
-          currentDate.add(1, 'days');
+    const allBudgets = getAllBudgets(dailyBudgets);
+
+    monthlyMaxBudgets.forEach(monthlyBudget => {
+      const monthlyBudgetDate = monthlyBudget.month.split('.');
+      const currentDate = moment({ year: parseInt(monthlyBudgetDate[1]), month: parseInt(monthlyBudgetDate[0]), day: 1, hour: 0, minute: 0});
+      const clonedCurrentDate = currentDate.clone();
+      const endDate = clonedCurrentDate.add(1, 'months');
+      let monthBudgetTotal = monthlyBudget.monthlyMaxCost;
+      let spentMonthBudgetTotal = 0;
+
+      while(compareDates(currentDate, endDate)) {
+        let dailyCost = 0;
+        let dailyMaximumBudget = 0;
+        let numberOfGeneratedCosts = Math.floor(Math.random() * maxCostsGeneratedPerDay + 1);
+
+        for(let i = 0; i < numberOfGeneratedCosts; i++) {
+          let getDailyBudget = 0;
+          let newCostDate = currentDate.clone().hour(Math.floor(Math.random() * 24)).minute(Math.floor(Math.random() * 60)).seconds(0);
+
+          const dailyBudget = allBudgets.filter(budget => compareDates(budget.time, newCostDate));
+          if(dailyBudget.length !== 0) {
+            const budgetItem = dailyBudget[dailyBudget.length - 1];
+            getDailyBudget = budgetItem.amount;
+            dailyMaximumBudget = budgetItem.maximumBudget;
+          }
+          if(getDailyBudget === 0) {
+            continue;
+          }
+
+          let generatedRandomCost = parseFloat((Math.random() * getDailyBudget).toFixed(2));
+          if((generatedRandomCost + dailyCost <= getDailyBudget * budgetMultiplier) && (generatedRandomCost + spentMonthBudgetTotal) <= monthBudgetTotal) {
+            dailyCost += generatedRandomCost;
+            spentMonthBudgetTotal += generatedRandomCost;
+            costsGenerated.push({ date: newCostDate, generatedCost: generatedRandomCost, getDailyBudget, dailyMaximumBudget});
+          }
         }
-      } else {
-        while(compareDates(currentDate, endDate)) {
-          currentDate.add(1, 'days');
-        }
+        currentDate.add(1, 'days');
       }
     })
   }
@@ -107,7 +142,7 @@ const App = () => {
         {displayInput()}
       </InputDiv>
       <div>
-        <button style={{width: '200px', height: '48px'}} onClick={() => calculateBudget()}>See budget</button>
+        <button style={{width: '200px', height: '48px'}} onClick={() => calculateBudget()}>See budgets</button>
       </div>
     </div>
   );
